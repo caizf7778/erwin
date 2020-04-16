@@ -85,11 +85,13 @@ def indexes_member(tablesname=None):
     else:
         return indexes
 
-def tables_primarykey(tablesname):
+def tables_primarykey(tablename,columnname):
     try :
-        for i in indexes_member(tablesname).keys():
+        for i in indexes_member(tablename).keys():
             if i.startswith('XPK'):
-                return indexes_member(tablesname)[i]
+                if columnname in indexes_member(tablename)[i]:
+                    return True
+                return False
     except AttributeError:
         return False
 
@@ -114,12 +116,12 @@ for t in tables_needed():
             columnname = c['COLUMN_NAME']
             order = c['ORDINAL_POSITION']
             nulloption = int(not c['NULLABLE'])
-            # if c['TYPE_NAME'] == 'DECIMAL':
-                # datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) + ',' + str(c['DECIMAL_DIGITS']) +')'
-            # elif c['TYPE_NAME'] in ['TIMESTAMP', 'INTEGER']:
-                # datatype = c['TYPE_NAME']
-            # else:
-                # datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) +')'
+            if c['TYPE_NAME'] == 'DECIMAL':
+                datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) + ',' + str(c['DECIMAL_DIGITS']) +')'
+            elif c['TYPE_NAME'] in ['TIMESTAMP', 'INTEGER']:
+                datatype = c['TYPE_NAME']
+            else:
+                datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) +')'
             if t in tabnoindex：
                 tp = 0
             for member in indexes_member(c['TABLE_NAME']).keys():
@@ -131,14 +133,58 @@ for t in tables_needed():
                     
             print(tablename, ' | COLUMN_NAME: ', columnname, ' | DataType: ',datatype, ' | Order: ', order, ' | Null Option:', nulloption)
 
-
-def columns_needed(tablename=None):
-    cols = {}
-    scol = set()
-    for cols in columns:
-        if not cols['TABLE_NAME'] in scol:
-            dic = {}
-            scol.add(cols['TABLE_NAME'])
-            dic[]
-
+def columns_addtype():
+    for c in columns:
+        if c['COLUMN_NAME'] in 
+        c['Type'] = 0
+    return columns
     
+def columns_needed(tablename=None):
+    tabs = {}
+    cols = {}
+    for c in columns:
+        tabname = c['TABLE_NAME']
+        columnname = c['COLUMN_NAME']
+        order = c['ORDINAL_POSITION']
+        nulloption = int(not c['NULLABLE'])
+        # tp = 100
+        if c['TYPE_NAME'] == 'DECIMAL':
+            datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) + ',' + str(c['DECIMAL_DIGITS']) +')'
+        elif c['TYPE_NAME'] in ['TIMESTAMP', 'INTEGER']:
+            datatype = c['TYPE_NAME']
+        else:
+            datatype = c['TYPE_NAME'] + '(' + str(c['COLUMN_SIZE']) +')'    
+        if c['ORDINAL_POSITION'] == 1:
+            dic = {}
+            cols = {}
+        if tables_primarykey(tabname,columnname):
+            # tp = 0
+        dic['Order'] = order
+        dic['Datatype'] = datatype
+        dic['Null Option'] = nulloption
+        # dic['Type'] = tp
+        cols[c['COLUMN_NAME']] = dic
+        tabs[c['TABLE_NAME']] = cols
+    return tabs
+    
+    
+def indexes_member(tablesname=None):
+    '''
+    获取所有索引及索引字段成员（未筛选需要维护的表）
+    '''
+    indexes = []
+    sin = set()
+    t = ()
+    for i in select_indexes():
+        if not i[0] in sin:
+            t1 =()
+        sin.add(i[0])
+        dic[i[1]] = re.split('[+-]',i[2]) [1:]
+        indexes[i[0]] = dic
+    if tablesname:
+        try:
+            return indexes[tablesname]
+        except (KeyError, NameError):
+            pass
+    else:
+        return indexes
