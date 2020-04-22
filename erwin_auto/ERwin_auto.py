@@ -1,8 +1,10 @@
 # coding:utf-8
 import win32com.client
+import configparser
+import os
+import xlwt
 from collections import Counter
 from collections import defaultdict
-import xlwt
 scapi = win32com.client.Dispatch('ERwin.SCAPI')
 scPUnit = scapi.PersistenceUnits.Add(r"E:\V4.0.er1", "RDO=Yes")
 scSession = scapi.Sessions.Add()
@@ -15,107 +17,117 @@ scTablespaceCol = scSession.ModelObjects.Collect(scRootObj, 'DB2 UDB Tablespace'
 scKeyGroupCol = scSession.ModelObjects.Collect(scRootObj, 'Key Group')
 scKeyGroupMemberCol = scSession.ModelObjects.Collect(scRootObj, 'Key Group Member')
 
-def tables_object(NotLogicalOnly=True):
+def tables(logical_only=False):
     '''
     返回表ID及表名
     '''
     ent_all = {}   # 表ID(未删减LogicalOnly)
     ent_nlo = {}   # 表ID(删减LogicalOnly)
-    for oEntObject in scEntObjCol:
-        ent_all[oEntObject.ObjectId] = oEntObject.Name
+    for ent in scEntObjCol:
+        ent_all.setdefault(ent.Name, []).append(ent.ObjectId)
         try:
-            EntLogical_Only = oEntObject.Properties('Logical Only').Value
-        except Exception as ex:
-            EntLogical_Only = False
-        if not EntLogical_Only:
-            ent_nlo[oEntObject.ObjectId] = oEntObject.Name
-    if NotLogicalOnly:
+            ent_logicalonly = ent.Properties('Logical Only').Value
+        except Exception:
+            ent_logicalonly = False
+        if not ent_logicalonly:
+            ent_nlo.setdefault(ent.Name, []).append(ent.ObjectId)
+    if  not logical_only:
         return ent_nlo
     else:
         return ent_all
 
-def columns_object(NotLogicalOnly=True):
+
+def add_table_head(tablename):
+    '''
+    只创建表名，没有任何字段
+    '''
+    scTranId = scSession.BeginTransaction()
+    entity = scSession.ModelObjects.Add("Entity")  # 创建表至少需要Type属性
+    entity.Properties("Name").Value = tablename
+    entity.Properties("Type").Value = 1    # 值为1表示为表
+    scSession.CommitTransaction (scTranId)
+    return entity.ObjectId
+
+
+def columns(logical_only=False):
     '''
     返回字段ID及字段名
     '''
     att_all = {}   # 字段ID(未删减LogicalOnly)
     att_nlo = {}   # 字段ID(删减LogicalOnly)
-    for oAtt in scAttCol:
-        att_all[oAtt.ObjectId] = oAtt.Name
+    for att in scAttCol:
+        att_all[att.ObjectId] = att.Name
         try:
-            AttLogical_Only = oAtt.Properties('Logical Only').Value
-        except Exception as ex:
-            AttLogical_Only = False
-        if not AttLogical_Only:
-            att_nlo[oAtt.ObjectId] = oAtt.Name
-    if NotLogicalOnly:
+            att_logicalonly = att.Properties('Logical Only').Value
+        except Exception:
+            att_logicalonly = False
+        if not att_logicalonly:
+            att_nlo[att.ObjectId] = att.Name
+    if not logical_only:
         return att_nlo
     else:
         return att_all
         
 
-def reference_object(LogicalOnly=True):
+def reference_object(logical_only=True):
     '''
     返回域引用的实体对象
     '''
     d_sm_all = {}   # 域引用的实体对象(未删减LogicalOnly)
     d_sm_nlo = {}   # 域引用的实体对象(删减LogicalOnly)
-    for scSubjectArea in scSubArCol:
+    tables_logicalonly =[]
+    for i in tables(True).values():
+        for j in i:
+            tables_logicalonly.append(j)
+    for subject_area in scSubArCol:
         l_sm =[]
         l_sm_nlo = []
-        scSubMember = scSession.ModelObjects.Collect(scSubjectArea.ObjectId)
-        for scReferencedEntity in scSubMember:
-            if scReferencedEntity.classname =="Drawing Object Entity":
-                ReferenceEntity = scReferencedEntity.Properties('DO Reference Object').Value
-                l_sm.append(ReferenceEntity)
-                if ReferenceEntity in tables_object(NotLogicalOnly=True):
-                    l_sm_nlo.append(ReferenceEntity)
-        d_sm_all[scSubjectArea.name] = l_sm
-        d_sm_nlo[scSubjectArea.name] = l_sm_nlo
-    if LogicalOnly:
+        subect_area_members = scSession.ModelObjects.Collect(subject_area.ObjectId)
+        for member in subect_area_members:
+            if member.classname =="Drawing Object Entity":
+                reference_entity = member.Properties('DO Reference Object').Value
+                l_sm.append(reference_entity)
+                if reference_entity in tables_logicalonly:
+                    l_sm_nlo.append(reference_entity)
+        d_sm_all[subject_area.name] = l_sm
+        d_sm_nlo[subject_area.name] = l_sm_nlo
+    if logical_only:
         return d_sm_nlo
     else:
         return d_sm_all
 
-
-def tabspaceID(spacename=None):
+def tabspaceID(space_name=None):
     '''
-    返回表空间ID及表空间名称
+    返回表空间名称及ID，也可添加表空间
     '''
     d_tabspace ={}  # 模型包含的表空间
-    for scTablespace in  scTablespaceCol:
-        d_tabspace[scTablespace.Name] = scTablespace.ObjectId
-    if spacename == None:
+    for tablespace in  scTablespaceCol:
+        d_tabspace[tablespace.Name] = tablespace.ObjectId
+    if space_name == None:
+        add_tabspace_config()
         return d_tabspace
-    if spacename not in d_tabspace.keys():
+    if space_name not in d_tabspace.keys():
         scTranId = scSession.BeginTransaction()
         oTabspace = scSession.ModelObjects.Add("DB2 UDB Tablespace")
-        oTabspace.Properties("Name").Value = spacename
+        oTabspace.Properties("Name").Value = space_name
         scSession.CommitTransaction (scTranId)
-        d_tabspace[spacename] = oTabspace.ObjectId
-    return d_tabspace[spacename]
+        d_tabspace[space_name] = oTabspace.ObjectId
+    add_tabspace_config()
+    return d_tabspace[space_name]
 
-def subject_areas():
+def add_tabspace_config():
     '''
-    查询域名ID及域名名称
+    配置文件添加表空间信息
     '''
-    d_subarea = {}
-    for scSA in scSubArCol:
-        d_subarea[scSA.ObjectId] = scSA.name
-    return d_subarea
-
-def add_subject_area(areaname):
-    '''
-    添加域，输入需要添加的域名
-    '''
-    if not areaname in list(subject_areas().values()):
-        scTranId = scSession.BeginTransaction()
-        oSubject = scSession.ModelObjects.Add("Subject Area")   #创建域至少需要Name属性
-        oSubject.Properties("Name").Value = areaname
-        scSession.CommitTransaction (scTranId)
-        return list(subject_areas().values())    
-    else:
-        return False
+    os.chdir(r'C:\Users\rrden\Desktop\erwin自动化')
+    conf = configparser.ConfigParser()
+    conf.read("erwin_config.ini")
+    if 'Tablespace' not in conf.sections():
+        conf.add_section("Tablespace")
+    for sctabspace in  scTablespaceCol:    
+        if sctabspace.Name.lower() not in conf.options("Tablespace"):
+            conf.set("Tablespace", sctabspace.Name, sctabspace.ObjectId)
+    conf.write(open("erwin_config.ini","w"))
 
 def subarea_ent():
     '''
@@ -123,46 +135,33 @@ def subarea_ent():
     '''
     mlid = []   # 总域实体表集
     nmlid = []  # 其他域实体表集
-    for scSubjectArea in scSubArCol:
-        scSubMember = scSession.ModelObjects.Collect(scSubjectArea.ObjectId)
-        for scReferencedEntity in scSubMember:
-            if scReferencedEntity.classname =="Drawing Object Entity":
-                if scSubjectArea.name =='<Main Subject Area>':
-                    mlid.append(scReferencedEntity.Properties('DO Reference Object').Value)
+    for subject_area in scSubArCol:
+        subect_area_members = scSession.ModelObjects.Collect(subject_area.ObjectId)
+        for member in subect_area_members:
+            if member.classname =="Drawing Object Entity":
+                if subject_area.name =='<Main Subject Area>':
+                    mlid.append(member.Properties('DO Reference Object').Value)
                 else:
-                    nmlid.append(scReferencedEntity.Properties('DO Reference Object').Value)
+                    nmlid.append(member.Properties('DO Reference Object').Value)
     return [item for item in mlid if item not in nmlid]
 
-def dup_tab():
-    '''
-    查找重复表及表重复次数
-    '''
-    PN_List = []
-    for oEntObject in scEntObjCol:
-        oen = oEntObject.Properties('Physical Name').Value
-        oeid = oEntObject.ObjectId
-        if oen == '%EntityName()':
-            oen = oEntObject.Name
-        PN_List.append(oen)
-    DC_PN_List = dict(Counter(PN_List))
-    return {key:value for key,value in DC_PN_List.items() if value > 1}
 
 def export_ent():
     '''
     输出实体表6个关键属性至excel表
     '''
     AL = []
-    for oEntObject in scEntObjCol:
-        oEntCol = scSession.ModelObjects.Collect(oEntObject, 'Attribute')
+    for ent in scEntObjCol:
+        oEntCol = scSession.ModelObjects.Collect(ent, 'Attribute')
         for scAttrObj in oEntCol:
-            scOPN = oEntObject.Properties('Physical Name').Value # 实体表物理名称(英文)
-            scON = oEntObject.Properties('Name').Value # 实体表名称(中文)
+            scOPN = ent.Properties('Physical Name').Value # 实体表物理名称(英文)
+            scON = ent.Properties('Name').Value # 实体表名称(中文)
             scAPN = scAttrObj.Properties('Physical Name').Value # 字段物理名称(英文)
             scAN = scAttrObj.Properties('Name').Value # 字段名称(中文)
             scAD = scAttrObj.Properties('Datatype').Value # 字段数据类型
             scANO = scAttrObj.Properties('Null Option').Value # 字段空值设置
             if scOPN == '%EntityName()':
-                scOPN = oEntObject.Name
+                scOPN = ent.Name
             if scAPN == '%AttName':
                 scAPN = scAttrObj.Name
             if scANO == 1:

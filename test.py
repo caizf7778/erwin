@@ -2,7 +2,7 @@
 import win32com.client
 from collections import defaultdict
 scapi = win32com.client.Dispatch('ERwin.SCAPI')
-scPUnit = scapi.PersistenceUnits.Add(r"E:\V4.0.er1", "RDO=Yes")
+scPUnit = scapi.PersistenceUnits.Add(r"E:\YCPAS.er1", "RDO=Yes")
 scSession = scapi.Sessions.Add()
 scSession.Open(scPUnit, 0, 0)
 scRootObj = scSession.ModelObjects.Root
@@ -98,20 +98,17 @@ def add_subject_area(areaname):
     oSubject.Properties("Name").Value = areaname
     scSession.CommitTransaction (scTranId)
 
-def add_table_head(tablename):
+def add_table_head(tabname, physical_only=False, tablespace='tbs_pas', index_tablespace='tbs_idx', ):
     '''
     只创建表名，没有任何字段
     '''
     scTranId = scSession.BeginTransaction()
     oEntity = scSession.ModelObjects.Add("Entity")  # 创建表至少需要Type属性
-    oEntity.Properties("Name").Value = tablename
+    oEntity.Properties("Name").Value = tabname
     oEntity.Properties("Type").Value = 1    # 值为1表示为表
     scSession.CommitTransaction (scTranId)
     return oEntity.ObjectId
-    
-    
-  # 创建字段至少需要Type属性
-def add_column()
+
 oEntity.Properties("Physical Only").Value = False   # 是否仅在物理模式下显示
 oEntity.Properties("DB2UDB TABLESPACE").Value = "{3CBD15DD-C280-46DA-A7CF-E5FA9DB42D9F}+00000000"   # 表空间
 oEntity.Properties("DB2UDB INDEX TABLESPACE").Value = "{9CB8D5C1-DD33-4A33-B6E2-8A8BC817E78D}+00000000"     # 索引表空间
@@ -122,7 +119,8 @@ oEntity.Properties("DB2UDB PARTITIONING KEY").Value = ""
 oEntity.Properties("Definition").Value = ""
 
 
-
+  # 创建字段至少需要Type属性
+def add_column(tablename, tablespace, indexspace,)
 oAttribute.Properties("Name").Value = "字段z"
 oAttribute.Properties("Physical Name").Value = "jxdxdh"
 oAttribute.Properties("Type").Value = 0     # 0/100,类型0为主键字段
@@ -142,9 +140,16 @@ oIndex.Properties("Key Group Type").Value = PK    # PK/AK1/IE1/FK
 
 {'Definition', 'Name', 'Entity Fill Color', 'Type', 'Index Generate', 'Physical Name', 'DB2UDB INDEX TABLESPACE', 'DB2UDB TABLESPACE',
  'DB Owner', 'DB2UDB PARTITIONING KEY', 'Physical Only'}
-
-
-
+for oEntObject in scEntObjCol:
+    try:
+        ent_logicalonly = ent.Properties('Logical Only').Value
+    except Exception:
+        ent_logicalonly = False
+    if not ent_logicalonly:
+        for i in oEntObject.Properties:
+            print(str(i),':',oEntObject.Properties(i).Value,end=' | ')
+    print()
+    print('-----------------------')
 
 
 

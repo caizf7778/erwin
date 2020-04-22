@@ -67,11 +67,9 @@ def column_deal():
     lst = []
     for i in row:
         tp = 100
-        tup = ()
         if i[1] in re.split('[+-]',i[2])[1:]:
             tp = 0
-        tup = (i[0],i[1],tp,i[3],i[4],i[5])
-        lst.append(tup)
+        lst.append(i[0],i[1],tp,i[3],i[4],i[5])
     return lst
 
 def tables_hasindexes():
@@ -104,8 +102,4 @@ def indexes_member(tablesname=None):
         return indexes
 
   
-                
-set(tables_needed()).difference(set(tables_hasindexes()))
-set(tables_hasindexes()).intersection(set(tables_needed()))
-
 
