@@ -171,7 +171,7 @@ for i in scRootObj.Properties:
     s4.add(str(i))
 # 
 for oEntObject in scEntObjCol:
-    oEntCol = scSession.ModelObjects.Collect(oEntObject, 'Attribute')
+    oEntCol = scSession.ModelObjectsscSession.ModelObjects.Collect(oEntObject, 'Attribute')
     for oAttObject In oEntCol:
         oUserNote = SCSession.ModelObjects.Collect(oAttObject).Add("Extended_Notes")
         oUserNote.Properties("Comment").Value = "Test note1"
